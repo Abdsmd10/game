@@ -7,118 +7,106 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// CHANGE TO YOUR TIKTOK USERNAME
-const TIKTOK_USERNAME = "yosoyrickclash";
-
-let tiktokConnection = new WebcastPushConnection(TIKTOK_USERNAME, {
-    processInitialData: true,
-    enableWebsocketUpgrade: true,
-    requestOptions: {
-        timeout: 10000
-    }
-});
+// --- CONFIGURATION ---
+const TIKTOK_USERNAME = "ivosh77"; 
+let tiktokConnection = new WebcastPushConnection(TIKTOK_USERNAME);
 
 app.use(express.static(__dirname));
 
-let playerTeams = {};
-let teamRosters = { red: [], blue: [], green: [], white: [] };
-let rewardedFollowers = new Set();
-let userLikes = {};
+// --- STATE MANAGEMENT ---
+let playerTeams = {}; 
+let likeCounters = {}; 
+let teamRosters = { red: [], blue: [], green: [], white: [] }; 
+let processedFollowers = new Set(); 
 
-// NEW: Data structures for the podium
-let individualScores = {}; 
-let userPfps = {}; 
+const teamMap = { 'r': 'red', 'b': 'blue', 'g': 'green', 'w': 'white' };
+const teams = ['red', 'blue', 'green', 'white'];
 
-const teamMap = {
-    r:'red', b:'blue', g:'green', w:'white',
-    red:'red', blue:'blue', green:'green', white:'white'
-};
+// Connect to TikTok
+tiktokConnection.connect().then(() => {
+    console.info(`✅ Connected to TikTok: ${TIKTOK_USERNAME}`);
+}).catch(err => console.error('❌ Connection Error:', err.message));
 
-io.on('connection',(socket)=>{
-    console.log("🌐 Dashboard connected");
-    // Send current podium state on join
-    updatePodium();
-
-    socket.on('resetRoundScores', () => {
-        individualScores = {};
-        userPfps = {};
-        updatePodium();
-    });
-});
-
-// Logic to calculate top 3 and emit to HTML
-function updatePodium() {
-    const topThree = Object.entries(individualScores)
-        .sort(([, a], [, b]) => b - a)
-        .slice(0, 3)
-        .map(([username, score]) => ({
-            username: username,
-            score: score,
-            pfp: userPfps[username] // This sends the URL to index.html
-        }));
-    
-    io.emit('updatePodium', topThree);
-}
-
-function connectTikTok(){
-    console.log(`📡 Attempting to connect to ${TIKTOK_USERNAME}...`);
-    tiktokConnection.connect().then(state=>{
-        console.log("✅ Connected to TikTok Room:", state.roomId);
-    }).catch(err=>{
-        console.log("❌ TikTok connection failed. Retrying in 10s...");
-        setTimeout(connectTikTok, 10000);
-    });
-}
-
-connectTikTok();
-
-tiktokConnection.on('chat',(data)=>{
+// 1. JOIN TEAM SYSTEM (Comment to join, drops 1 ball)
+tiktokConnection.on('chat', (data) => {
     const comment = data.comment.toLowerCase().trim();
-    
-    // Always store/update PFP for the podium
-    userPfps[data.uniqueId] = data.profilePictureUrl;
+    const uID = data.uniqueId;
+    const pPic = data.profilePictureUrl;
 
-    if(teamMap[comment]){
-        const team = teamMap[comment];
-        playerTeams[data.uniqueId] = team;
+    if (!playerTeams[uID] && teamMap[comment]) {
+        const selectedTeam = teamMap[comment];
+        playerTeams[uID] = selectedTeam;
         
-        teamRosters[team].unshift(data.uniqueId);
-        if(teamRosters[team].length > 5) teamRosters[team].pop();
-
-        // Increment individual score for the podium
-        individualScores[data.uniqueId] = (individualScores[data.uniqueId] || 0) + 1;
-
-        io.emit('dropBall',{team:team,count:1});
-        io.emit('updateRoster',{team:team,roster:teamRosters[team]});
-        updatePodium();
+        teamRosters[selectedTeam].push(pPic);
+        console.log(`✨ ${uID} joined Team ${selectedTeam.toUpperCase()}`);
+        
+        io.emit('dropBall', { team: selectedTeam, count: 1, user: uID, pfp: pPic });
+        io.emit('updateRoster', { team: selectedTeam, roster: teamRosters[selectedTeam] });
     }
 });
 
-tiktokConnection.on('follow',(data)=>{
-    const team = playerTeams[data.uniqueId];
-    userPfps[data.uniqueId] = data.profilePictureUrl;
-
-    if(team && !rewardedFollowers.has(data.uniqueId)){
-        rewardedFollowers.add(data.uniqueId);
-        individualScores[data.uniqueId] = (individualScores[data.uniqueId] || 0) + 10;
-        io.emit('dropBall',{team:team,count:10});
-        updatePodium();
-    }
-});
-
-tiktokConnection.on('like',(data)=>{
-    const team = playerTeams[data.uniqueId];
-    userPfps[data.uniqueId] = data.profilePictureUrl;
-
-    if(team){
-        userLikes[data.uniqueId] = (userLikes[data.uniqueId] || 0) + data.likeCount;
-        if(userLikes[data.uniqueId] >= 10){
-            userLikes[data.uniqueId] -= 10;
-            individualScores[data.uniqueId] = (individualScores[data.uniqueId] || 0) + 5;
-            io.emit('dropBall',{team:team,count:5});
-            updatePodium();
+// 2. LIKE SYSTEM (15 likes = 5 balls)
+tiktokConnection.on('like', (data) => {
+    const uID = data.uniqueId;
+    if (playerTeams[uID]) {
+        likeCounters[uID] = (likeCounters[uID] || 0) + data.likeCount;
+        
+        if (likeCounters[uID] >= 15) {
+            const dropCount = Math.floor(likeCounters[uID] / 15) * 5;
+            io.emit('dropBall', { team: playerTeams[uID], count: dropCount, user: uID, pfp: data.profilePictureUrl });
+            likeCounters[uID] %= 15;
         }
     }
 });
 
-server.listen(3000,()=> console.log("🚀 Server running http://localhost:3000"));
+// 3. FOLLOWER SYSTEM (5 balls)
+tiktokConnection.on('follow', (data) => {
+    const uID = data.uniqueId;
+    if (processedFollowers.has(uID)) return; // Prevent spam
+
+    let targetTeam;
+    if (playerTeams[uID]) {
+        // Follow after comment
+        targetTeam = playerTeams[uID];
+        console.log(`👤 ${uID} followed after joining! Dropping 5 balls for ${targetTeam}.`);
+    } else {
+        // Follow before comment (Random team)
+        targetTeam = teams[Math.floor(Math.random() * teams.length)];
+        console.log(`👤 ${uID} followed before joining! Random drop: 5 balls for ${targetTeam}.`);
+    }
+
+    processedFollowers.add(uID);
+    io.emit('dropBall', { team: targetTeam, count: 5, user: uID, pfp: data.profilePictureUrl });
+});
+
+// 4. GIFT SYSTEM (Specific gifts for specific teams)
+tiktokConnection.on('gift', (data) => {
+    const uID = data.uniqueId;
+    const giftName = data.giftName.toLowerCase();
+    let targetTeam = null;
+
+    // Check gift type to determine team
+    if (giftName === 'rose') {
+        targetTeam = 'red';
+    } else if (giftName === 'gg') {
+        targetTeam = 'blue';
+    } else if (giftName.includes('heart me')) {
+        targetTeam = 'green';
+    } else if (giftName === 'ice cream') {
+        targetTeam = 'white';
+    }
+
+    if (targetTeam) {
+        console.log(`🎁 ${uID} sent ${giftName}! Dropping 20 balls for ${targetTeam}.`);
+        io.emit('dropBall', { 
+            team: targetTeam, 
+            count: 20, 
+            user: uID, 
+            pfp: data.profilePictureUrl 
+        });
+    }
+});
+
+server.listen(3000, () => {
+    console.log('🚀 Server running: http://localhost:3000');
+});
