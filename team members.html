@@ -1,0 +1,118 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Live Team Rosters - Transparent</title>
+    <style>
+        :root {
+            --red: #ff0050; --blue: #00f2ea; --green: #22c55e; --white: #ffffff;
+        }
+        
+        body { 
+            margin: 0; 
+            background: transparent; 
+            color: white; 
+            font-family: 'Inter', system-ui, sans-serif; 
+            padding: 10px;
+            overflow: hidden;
+        }
+
+        .external-roster {
+            width: 350px; 
+            background: rgba(0, 0, 0, 0.4);
+            border-radius: 10px;
+            padding: 15px;
+            backdrop-filter: blur(8px);
+            border: 1px solid rgba(255,255,255,0.1);
+        }
+
+        h2 { 
+            font-size: 0.8rem; 
+            color: #aaa; 
+            margin: 0 0 15px 0; 
+            text-transform: uppercase; 
+            letter-spacing: 3px;
+            text-align: center;
+        }
+        
+        .roster-container { display: flex; flex-direction: column; gap: 20px; }
+
+        .team-row {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            padding-bottom: 5px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .team-tag {
+            font-weight: 900;
+            font-size: 0.7rem;
+            width: 45px;
+            color: var(--c);
+            text-transform: uppercase;
+        }
+
+        .member-list {
+            display: flex;
+            gap: 8px;
+            min-height: 35px;
+        }
+
+        .member-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            border: 2px solid var(--c);
+            background: #222;
+            object-fit: cover;
+            animation: appear 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+
+        @keyframes appear {
+            0% { transform: scale(0) rotate(-45deg); opacity: 0; }
+            100% { transform: scale(1) rotate(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+<div class="external-roster">
+    <h2>Active Squads</h2>
+    <div class="roster-container">
+        <div class="team-row" style="--c: var(--red)">
+            <div class="team-tag">Alpha</div>
+            <div id="list-red" class="member-list"></div>
+        </div>
+        <div class="team-row" style="--c: var(--blue)">
+            <div class="team-tag">Sigma</div>
+            <div id="list-blue" class="member-list"></div>
+        </div>
+        <div class="team-row" style="--c: var(--green)">
+            <div class="team-tag">Delta</div>
+            <div id="list-green" class="member-list"></div>
+        </div>
+        <div class="team-row" style="--c: var(--white)">
+            <div class="team-tag">Prime</div>
+            <div id="list-white" class="member-list"></div>
+        </div>
+    </div>
+</div>
+
+<script>
+    window.addEventListener("message", (event) => {
+        const { team, roster } = event.data;
+        if (team && roster) {
+            const list = document.getElementById(`list-${team}`);
+            if (list) {
+                // Roster is an array of profile picture URLs
+                list.innerHTML = roster.map(url => `
+                    <img src="${url}" class="member-avatar" alt="p">
+                `).join('');
+            }
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>TikTok Team Arena 3D Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+:root {
+    --bg: #020617;
+    --red: #ff0050;
+    --blue: #00f2ea;
+    --green: #22c55e;
+    --white: #ffffff;
+}
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #000;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#stream {
+    width: calc(100vh * 9 / 16);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(circle at center, #111827 0%, #020617 100%);
+    position: relative;
+    box-shadow: 0 0 100px rgba(0,0,0,1);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+#header {
+    padding: 20px;
+    text-align: center;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 3px solid var(--blue);
+    z-index: 100;
+}
+
+#timer {
+    font-size: 38px;
+    font-weight: 900;
+    text-shadow: 0 0 15px var(--blue);
+    margin-bottom: 10px;
+}
+
+.scores {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.team {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 10px 2px;
+    font-weight: 800;
+    font-size: 11px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.red { color: var(--red); border-bottom: 4px solid var(--red); }
+.blue { color: var(--blue); border-bottom: 4px solid var(--blue); }
+.green { color: var(--green); border-bottom: 4px solid var(--green); }
+.white { color: var(--white); border-bottom: 4px solid var(--white); }
+
+.score { font-size: 26px; display: block; margin-top: 5px; }
+
+#game { flex: 1; position: relative; }
+
+#basket-visual {
+    position: absolute;
+    bottom: 150px; 
+    left: 50%;
+    transform: translateX(-50%);
+    width: 170px;
+    height: 85px;
+    border: 6px solid var(--blue);
+    border-top: none;
+    border-radius: 0 0 80px 80px;
+    background: linear-gradient(180deg, rgba(0, 242, 234, 0.15) 0%, transparent 100%);
+    box-shadow: 0 0 30px rgba(0, 242, 234, 0.5);
+    pointer-events: none;
+    z-index: 20; 
+}
+
+.pop {
+    position: absolute;
+    font-weight: 900;
+    font-size: 24px;
+    color: var(--blue);
+    text-shadow: 0 0 100px var(--blue);
+    pointer-events: none;
+    z-index: 50;
+    animation: popUp 0.8s ease-out forwards;
+}
+
+@keyframes popUp {
+    0% { transform: scale(0.5) translateY(0); opacity: 1; }
+    100% { transform: scale(1.4) translateY(-80px); opacity: 0; }
+}
+
+#winner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(2, 6, 23, 0.98);
+    padding: 40px;
+    border-radius: 20px;
+    border: 4px solid var(--blue);
+    box-shadow: 0 0 60px var(--blue);
+    font-size: 44px;
+    font-weight: 900;
+    text-align: center;
+    display: none;
+    z-index: 1000;
+}
+</style>
+</head>
+<body>
+
+<div id="stream">
+    <div id="header">
+        <div id="timer">01:00</div>
+        <div class="scores">
+            <div class="team red">RED<span id="score-red" class="score">0</span></div>
+            <div class="team blue">BLUE<span id="score-blue" class="score">0</span></div>
+            <div class="team green">GREEN<span id="score-green" class="score">0</span></div>
+            <div class="team white">WHITE<span id="score-white" class="score">0</span></div>
+        </div>
+    </div>
+    <div id="game">
+        <div id="basket-visual"></div>
+        <div id="winner"></div>
+    </div>
+</div>
+
+<script>
+const socket = io();
+const { Engine, Render, Runner, Bodies, Composite, Events } = Matter;
+
+const engine = Engine.create();
+const width = 420;
+const height = 720;
+const game = document.getElementById("game");
+
+const render = Render.create({
+    element: game,
+    engine: engine,
+    options: {
+        width: width,
+        height: height,
+        wireframes: false,
+        background: "transparent"
+    }
+});
+
+Render.run(render);
+Runner.run(Runner.create(), engine);
+
+const colors = {
+    red: "#ff0050",
+    blue: "#00f2ea",
+    green: "#22c55e",
+    white: "#ffffff"
+};
+
+const basketTopY = 485; 
+const basketWidth = 170;
+const edgeOffset = basketWidth / 2;
+
+// RE-ADDED AND COLOR CHANGED: HIGH-VIS NEON GREEN FUNNELS
+const funnelL = Bodies.rectangle(width/2 - edgeOffset - 110, basketTopY - 95, 250, 25, { 
+    isStatic: true, 
+    angle: 0.7, 
+    render: { 
+        fillStyle: "#22c55e", 
+        strokeStyle: "#ffffff", 
+        lineWidth: 4 
+    } 
+});
+
+const funnelR = Bodies.rectangle(width/2 + edgeOffset + 110, basketTopY - 95, 250, 25, { 
+    isStatic: true, 
+    angle: -0.7, 
+    render: { 
+        fillStyle: "#22c55e", 
+        strokeStyle: "#ffffff", 
+        lineWidth: 4 
+    } 
+});
+
+const basketSensor = Bodies.rectangle(width / 2, basketTopY + 15, basketWidth - 30, 10, { 
+    isStatic: true, isSensor: true, label: "goal", render: { visible: false } 
+});
+
+const ground = Bodies.rectangle(width/2, height + 50, width, 100, { isStatic: true });
+
+Composite.add(engine.world, [funnelL, funnelR, basketSensor, ground]);
+
+function spawnBall(team) {
+    const ball = Bodies.circle(Math.random() * (width - 80) + 40, -20, 12, {
+        restitution: 0.5,
+        friction: 0.1,
+        label: team,
+        render: { 
+            fillStyle: colors[team],
+            strokeStyle: "rgba(255,255,255,0.5)",
+            lineWidth: 3
+        }
+    });
+    Composite.add(engine.world, ball);
+}
+
+socket.on("dropBall", (data) => {
+    let delay = 0;
+    for (let i = 0; i < data.count; i++) {
+        setTimeout(() => spawnBall(data.team), delay);
+        delay += 50;
+    }
+});
+
+function triggerPop(x, y) {
+    const p = document.createElement("div");
+    p.className = "pop"; p.innerText = "+1";
+    p.style.left = x + "px"; p.style.top = (y + 100) + "px"; 
+    game.appendChild(p);
+    setTimeout(() => p.remove(), 800);
+}
+
+Events.on(engine, "collisionStart", (event) => {
+    event.pairs.forEach(pair => {
+        let ball = null;
+        if (pair.bodyA.label === "goal") ball = pair.bodyB;
+        if (pair.bodyB.label === "goal") ball = pair.bodyA;
+
+        if (ball && colors[ball.label]) {
+            const team = ball.label;
+            const scoreEl = document.getElementById("score-" + team);
+            scoreEl.innerText = parseInt(scoreEl.innerText) + 1;
+            
+            triggerPop(ball.position.x, ball.position.y);
+            
+            const basket = document.getElementById("basket-visual");
+            basket.style.transform = "translateX(-50%) scale(1.1)";
+            setTimeout(() => basket.style.transform = "translateX(-50%) scale(1)", 100);
+
+            Composite.remove(engine.world, ball);
+        }
+    });
+});
+
+let timeLeft = 60;
+setInterval(() => {
+    if (timeLeft <= 0) {
+        const results = {
+            red: parseInt(document.getElementById("score-red").innerText),
+            blue: parseInt(document.getElementById("score-blue").innerText),
+            green: parseInt(document.getElementById("score-green").innerText),
+            white: parseInt(document.getElementById("score-white").innerText)
+        };
+        const winner = Object.keys(results).reduce((a, b) => results[a] > results[b] ? a : b);
+        const w = document.getElementById("winner");
+        w.innerHTML = `<span style="color:${colors[winner]}">${winner.toUpperCase()}</span><br>WINS!`;
+        w.style.display = "block";
+        setTimeout(() => {
+            w.style.display = "none";
+            document.querySelectorAll(".score").forEach(s => s.innerText = 0);
+            timeLeft = 60;
+        }, 5000);
+        return;
+    }
+    timeLeft--;
+    const m = Math.floor(timeLeft / 60);
+    const s = (timeLeft % 60).toString().padStart(2, "0");
+    document.getElementById("timer").innerText = `0${m}:${s}`;
+}, 1000);
+</script>
+</body>
+</html>

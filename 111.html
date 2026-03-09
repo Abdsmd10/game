@@ -1,0 +1,203 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="UTF-8">
+<title>TikTok Team Arena 3D Pro</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/matter-js/0.19.0/matter.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<style>
+:root {
+    --bg: #020617;
+    --red: #ff0050;
+    --blue: #00f2ea;
+    --green: #22c55e;
+    --white: #ffffff;
+}
+
+body {
+    margin: 0;
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    background: #000;
+    color: white;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+}
+
+#stream {
+    width: calc(100vh * 9 / 16);
+    height: 100vh;
+    display: flex;
+    flex-direction: column;
+    background: radial-gradient(circle at center, #111827 0%, #020617 100%);
+    position: relative;
+    box-shadow: 0 0 100px rgba(0,0,0,1);
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* IMPROVED OVERLAY LOGIC */
+#new-project-overlay {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: contain; /* Ensures the 9:16 ratio fits perfectly */
+    z-index: 9999; /* Maximum priority */
+    pointer-events: none;
+    animation: blink 6s infinite;
+    display: block;
+}
+
+@keyframes blink {
+    0%, 33.33% { opacity: 1; visibility: visible; }   /* Visible 2s */
+    33.34%, 100% { opacity: 0; visibility: hidden; } /* Hidden 4s */
+}
+
+#header {
+    padding: 20px;
+    text-align: center;
+    background: rgba(15, 23, 42, 0.95);
+    backdrop-filter: blur(10px);
+    border-bottom: 3px solid var(--blue);
+    z-index: 100;
+}
+
+#timer {
+    font-size: 38px;
+    font-weight: 900;
+    text-shadow: 0 0 15px var(--blue);
+    margin-bottom: 10px;
+}
+
+.scores {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 10px;
+}
+
+.team {
+    background: rgba(255,255,255,0.05);
+    border-radius: 12px;
+    padding: 10px 2px;
+    font-weight: 800;
+    font-size: 11px;
+    border: 1px solid rgba(255,255,255,0.1);
+}
+
+.red { color: var(--red); border-bottom: 4px solid var(--red); }
+.blue { color: var(--blue); border-bottom: 4px solid var(--blue); }
+.green { color: var(--green); border-bottom: 4px solid var(--green); }
+.white { color: var(--white); border-bottom: 4px solid var(--white); }
+
+.score { font-size: 26px; display: block; margin-top: 5px; }
+
+#game { flex: 1; position: relative; }
+
+#basket-visual {
+    position: absolute;
+    bottom: 150px; 
+    left: 50%;
+    transform: translateX(-50%);
+    width: 170px;
+    height: 85px;
+    border: 6px solid var(--blue);
+    border-top: none;
+    border-radius: 0 0 80px 80px;
+    background: linear-gradient(180deg, rgba(0, 242, 234, 0.15) 0%, transparent 100%);
+    box-shadow: 0 0 30px rgba(0, 242, 234, 0.5);
+    pointer-events: none;
+    z-index: 20; 
+}
+
+.pop {
+    position: absolute;
+    font-weight: 900;
+    font-size: 24px;
+    color: var(--blue);
+    text-shadow: 0 0 100px var(--blue);
+    pointer-events: none;
+    z-index: 50;
+    animation: popUp 0.8s ease-out forwards;
+}
+
+@keyframes popUp {
+    0% { transform: scale(0.5) translateY(0); opacity: 1; }
+    100% { transform: scale(1.4) translateY(-80px); opacity: 0; }
+}
+
+#winner {
+    position: absolute;
+    top: 50%;
+    left: 50%;
+    transform: translate(-50%, -50%);
+    background: rgba(2, 6, 23, 0.98);
+    padding: 40px;
+    border-radius: 20px;
+    border: 4px solid var(--blue);
+    box-shadow: 0 0 60px var(--blue);
+    font-size: 44px;
+    font-weight: 900;
+    text-align: center;
+    display: none;
+    z-index: 1000;
+}
+</style>
+</head>
+<body>
+
+<div id="stream">
+    <div id="header">
+        <div id="timer">01:00</div>
+        <div class="scores">
+            <div class="team red">RED<span id="score-red" class="score">0</span></div>
+            <div class="team blue">BLUE<span id="score-blue" class="score">0</span></div>
+            <div class="team green">GREEN<span id="score-green" class="score">0</span></div>
+            <div class="team white">WHITE<span id="score-white" class="score">0</span></div>
+        </div>
+    </div>
+    <div id="game">
+        <div id="basket-visual"></div>
+        <div id="winner"></div>
+    </div>
+    
+    <img src="new project.png" id="new-project-overlay">
+</div>
+
+<script>
+const socket = io();
+const { Engine, Render, Runner, Bodies, Composite, Events } = Matter;
+
+const engine = Engine.create();
+const width = 420;
+const height = 720;
+const game = document.getElementById("game");
+
+const render = Render.create({
+    element: game,
+    engine: engine,
+    options: {
+        width: width,
+        height: height,
+        wireframes: false,
+        background: "transparent"
+    }
+});
+
+Render.run(render);
+Runner.run(Runner.create(), engine);
+
+const colors = {
+    red: "#ff0050",
+    blue: "#00f2ea",
+    green: "#22c55e",
+    white: "#ffffff"
+};
+
+const basketTopY = 485; 
+const basketWidth = 170;
+const edgeOffset = basketWidth / 2;
+
+const funnelL = Bodies.rectangle

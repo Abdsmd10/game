@@ -1,0 +1,23 @@
+{
+  "name": "my-plinko-app",
+  "version": "1.0.0",
+  "description": "Pro Plinko: Elite Streamer Edition",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-builder"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "electron-builder": "^24.9.1"
+  },
+  "dependencies": {
+    "express": "^5.2.1",
+    "socket.io": "^4.8.3",
+    "tiktok-live-connector": "^2.1.1-beta1"
+  }
+}
