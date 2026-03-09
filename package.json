@@ -4,7 +4,8 @@
   "description": "Pro Plinko: Elite Streamer Edition",
   "main": "main.js",
   "scripts": {
-    "start": "electron .",
+    "start": "node server.js",
+    "dev": "electron .",
     "build": "electron-builder"
   },
   "keywords": [],
