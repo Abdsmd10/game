@@ -8,52 +8,44 @@
     <script src="/socket.io/socket.io.js"></script>
     <style>
         :root {
-            --bg: #05070a; --panel: #111827; --accent: #fbbf24;
+            --bg: transparent; --panel: rgba(17, 24, 39, 0.8); --accent: #fbbf24;
             --red: #ef4444; --blue: #3b82f6; --green: #22c55e; --white: #ffffff;
         }
         body { 
-            margin: 0; background: #000; color: white; 
+            margin: 0; background: transparent !important; color: white; 
             font-family: 'Inter', system-ui, sans-serif; 
             display: flex; justify-content: center; align-items: center; height: 100vh;
             overflow: hidden;
         }
         #stream-wrapper {
             width: calc(100vh * 9 / 16); height: 100vh;
-            background: url('1.jpg');
-            background-size: cover; 
+            background-color: transparent; 
+            background-size: cover;
             background-position: center;
             display: flex; flex-direction: column; position: relative; 
-            border: 2px solid #334155; box-sizing: border-box; 
-            opacity: 0.75;
+            border: 2px solid rgba(51, 65, 85, 0.3); box-sizing: border-box; 
         }
         
         #game-overlay {
             position: absolute;
-            top: 0;
-            left: 0;
-            width: 100%;
-            height: 100%;
-            object-fit: cover;
-            z-index: 50; 
+            top: 0; left: 0; width: 100%; height: 100%;
+            object-fit: cover; z-index: 50; 
             pointer-events: none;
-            /* Added 'both' to maintain state and ensured animation name matches */
-            animation: flashOverlay 6s linear infinite both;
-            display: block;
+            opacity: 0.95; 
+            animation: flashOverlay 6s infinite;
         }
 
         @keyframes flashOverlay {
-            0% { opacity: 1; }
-            33% { opacity: 1; }
-            34% { opacity: 0; }
-            100% { opacity: 0; }
+            0%, 33.33% { opacity: 0.95; }  
+            33.34%, 100% { opacity: 0; } 
         }
 
         #header-board { 
             padding: 12px; 
-            background: transparent; 
+            background: rgba(0, 0, 0, 0.5); 
             border-bottom: 2px solid var(--accent); 
             z-index: 10; 
-            backdrop-filter: none; 
+            backdrop-filter: blur(4px); 
         }
         
         .bg-control { display: flex; gap: 4px; margin-bottom: 8px; }
@@ -80,23 +72,23 @@
 
         #finish-line-ui {
             position: absolute; bottom: 80px; width: 100%; height: 40px;
-            background-color: #fff;
             background-image: 
-                linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%, #000),
-                linear-gradient(45deg, #000 25%, transparent 25%, transparent 75%, #000 75%, #000);
+                linear-gradient(45deg, rgba(0,0,0,0.6) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.6) 75%, rgba(0,0,0,0.6)),
+                linear-gradient(45deg, rgba(0,0,0,0.6) 25%, transparent 25%, transparent 75%, rgba(0,0,0,0.6) 75%, rgba(0,0,0,0.6));
             background-size: 20px 20px;
             background-position: 0 0, 10px 10px;
             border-top: 4px solid var(--accent);
             display: flex; pointer-events: none; z-index: 5;
-            box-shadow: 0 -10px 20px rgba(0,0,0,0.5);
         }
         
         .celebration-box { position: absolute; left: 50%; transform: translateX(-50%) scale(0); background: rgba(17, 24, 39, 0.98); border: 3px solid var(--accent); border-radius: 15px; text-align: center; z-index: 100; transition: 0.5s; }
         .celebration-box.show { transform: translateX(-50%) scale(1); }
         
+        #top-scorer-pfp { width: 60px; height: 60px; border-radius: 50%; border: 3px solid var(--accent); margin: 10px auto; display: block; object-fit: cover; }
+
         #audio-unlock {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.9); z-index: 999; display: flex;
+            background: rgba(0,0,0,0.8); z-index: 999; display: flex;
             flex-direction: column; align-items: center; justify-content: center;
             cursor: pointer;
         }
@@ -113,8 +105,8 @@
 
     <div id="header-board">
         <div class="bg-control">
-            <input type="text" id="bg-url-input" placeholder="Enter background image URL...">
-            <button onclick="updateBackground()">SET BG</button>
+            <input type="text" id="bg-url-input" placeholder="Enter image URL (Direct Link)...">
+            <button id="set-bg-btn">SET BG</button>
         </div>
 
         <div class="timer-display" id="timer">02:00</div>
@@ -129,29 +121,29 @@
     <div id="game-container"></div>
     <div id="finish-line-ui"></div>
 
-    <div id="team-celebration" class="celebration-box" style="top: 30%; width: 220px; padding: 20px;">
+    <div id="team-celebration" class="celebration-box" style="top: 25%; width: 240px; padding: 20px;">
         <div style="font-size: 0.8rem; color: var(--accent);">WINNING TEAM</div>
-        <div id="win-team-name" style="font-size: 2rem; font-weight: 900;">---</div>
+        <div id="win-team-name" style="font-size: 1.8rem; font-weight: 900; margin-bottom: 10px;">---</div>
+        
+        <div style="border-top: 1px solid #334155; padding-top: 10px;">
+            <div style="font-size: 0.7rem; color: #aaa; text-transform: uppercase;">Top Scorer</div>
+            <img id="top-scorer-pfp" src="https://i.pravatar.cc/100" alt="Winner">
+            <div id="top-scorer-name" style="font-size: 1.2rem; font-weight: bold; color: var(--accent);">---</div>
+            <div id="top-scorer-points" style="font-size: 0.8rem; color: #fff;">0 PTS</div>
+        </div>
     </div>
 </div>
 
 <script>
-// FORCE RELOAD OVERLAY TO PREVENT RENDER CACHING ISSUES
-window.addEventListener('DOMContentLoaded', () => {
-    const overlay = document.getElementById('game-overlay');
-    const currentSrc = overlay.src;
-    overlay.src = currentSrc + "?t=" + new Date().getTime();
-});
-
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let isPaused = true; 
 
-function updateBackground() {
+document.getElementById('set-bg-btn').addEventListener('click', () => {
     const url = document.getElementById('bg-url-input').value;
     if (url) {
         document.getElementById('stream-wrapper').style.backgroundImage = `url('${url}')`;
     }
-}
+});
 
 const { Engine, Render, Runner, Bodies, Composite, Events } = Matter;
 const engine = Engine.create();
@@ -168,6 +160,7 @@ const testPFPs = {
 };
 
 let scores = { red: 0, blue: 0, green: 0, white: 0 };
+let playerScores = {}; 
 let roundWins = { red: 0, blue: 0, green: 0, white: 0 }; 
 let timeLeft = 120; 
 
@@ -229,6 +222,7 @@ function spawnBall(team, user, pfpUrl, overridePause = false) {
     }
 
     ball.pfpUrl = pfpUrl;
+    ball.userName = user; 
     Composite.add(engine.world, ball);
     trails.push({ id: ball.id, color: tColor, points: [] });
 }
@@ -236,7 +230,7 @@ function spawnBall(team, user, pfpUrl, overridePause = false) {
 window.addEventListener('keydown', (e) => {
     const key = e.key.toLowerCase();
     const map = { 'x': 'red', 'c': 'blue', 'v': 'green', 'b': 'white' };
-    if (map[key]) spawnBall(map[key], "Tester", testPFPs[map[key]]);
+    if (map[key]) spawnBall(map[key], `Tester_${map[key]}`, testPFPs[map[key]]);
 });
 
 const rows = 7;
@@ -247,16 +241,16 @@ for (let i = 0; i < rows; i++) {
     if (i % 2 === 0) {
         Composite.add(engine.world, Bodies.rectangle(gameWidth / 2, yPos, stickLen, stickThick, {
             isStatic: true, restitution: 1.1, angle: (Math.random() > 0.5 ? 0.15 : -0.15), label: 'peg',
-            render: { fillStyle: '#fff' }
+            render: { fillStyle: 'transparent' }
         }));
         Composite.add(engine.world, [
-            Bodies.rectangle(60, yPos, stickLen, stickThick, { isStatic: true, restitution: 1.1, angle: 0.4, label: 'peg', render: { fillStyle: '#fff' } }),
-            Bodies.rectangle(gameWidth - 60, yPos, stickLen, stickThick, { isStatic: true, restitution: 1.1, angle: -0.4, label: 'peg', render: { fillStyle: '#fff' } })
+            Bodies.rectangle(60, yPos, stickLen, stickThick, { isStatic: true, restitution: 1.1, angle: 0.4, label: 'peg', render: { fillStyle: 'transparent' } }),
+            Bodies.rectangle(gameWidth - 60, yPos, stickLen, stickThick, { isStatic: true, restitution: 1.1, angle: -0.4, label: 'peg', render: { fillStyle: 'transparent' } })
         ]);
     } else {
         Composite.add(engine.world, [
-            Bodies.rectangle(gameWidth / 2 - 80, yPos, stickLen, stickThick, { isStatic: true, restitution: 1.1, angle: -0.3, label: 'peg', render: { fillStyle: '#fff' } }),
-            Bodies.rectangle(gameWidth / 2 + 80, yPos, stickLen, stickThick, { isStatic: true, restitution: 1.1, angle: 0.3, label: 'peg', render: { fillStyle: '#fff' } })
+            Bodies.rectangle(gameWidth / 2 - 80, yPos, stickLen, stickThick, { isStatic: true, restitution: 1.1, angle: -0.3, label: 'peg', render: { fillStyle: 'transparent' } }),
+            Bodies.rectangle(gameWidth / 2 + 80, yPos, stickLen, stickThick, { isStatic: true, restitution: 1.1, angle: 0.3, label: 'peg', render: { fillStyle: 'transparent' } })
         ]);
     }
 }
@@ -284,12 +278,22 @@ Events.on(render, 'afterRender', () => {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle);
-        ctx.fillStyle = 'rgba(0,0,0,0.4)';
-        ctx.fillRect(-stickLen/2 + 4, -stickThick/2 + 4, stickLen, stickThick);
+
+        // CLEARER STICKS VISIBILITY
+        ctx.globalAlpha = 0.65; 
+
+        // Deep Shadow
+        ctx.fillStyle = 'rgba(0,0,0,0.4)'; 
+        ctx.fillRect(-stickLen/2 + 3, -stickThick/2 + 3, stickLen, stickThick);
+        
+        // Main Stick Body (Steel/Glass look)
         ctx.fillStyle = '#94a3b8';
-        ctx.fillRect(-stickLen/2, -stickThick/2, stickLen, stickThick + 2);
-        ctx.fillStyle = '#ffffff';
-        ctx.fillRect(-stickLen/2, -stickThick/2 - 2, stickLen, stickThick);
+        ctx.fillRect(-stickLen/2, -stickThick/2, stickLen, stickThick);
+        
+        // Highlight Edge
+        ctx.fillStyle = 'rgba(255,255,255,0.4)';
+        ctx.fillRect(-stickLen/2, -stickThick/2, stickLen, 2);
+        
         ctx.restore();
     });
 
@@ -331,7 +335,7 @@ Events.on(render, 'afterRender', () => {
         ctx.save();
         ctx.beginPath();
         ctx.ellipse(x + 4, y + 4, radius, radius*0.8, 0, 0, Math.PI*2);
-        ctx.fillStyle = 'rgba(0,0,0,0.3)';
+        ctx.fillStyle = 'rgba(0,0,0,1)';
         ctx.fill();
 
         const grad = ctx.createRadialGradient(x - radius/3, y - radius/3, radius/4, x, y, radius);
@@ -348,7 +352,7 @@ Events.on(render, 'afterRender', () => {
         ctx.arc(x, y, radius * 0.85, 0, Math.PI * 2);
         ctx.clip();
         if (img && img.complete) {
-            ctx.globalAlpha = 0.85;
+            ctx.globalAlpha = 1;
             ctx.drawImage(img, x - radius, y - radius, radius * 2, radius * 2);
         }
         ctx.restore();
@@ -389,6 +393,11 @@ Events.on(engine, 'collisionStart', (event) => {
             if (colors[ball.label]) {
                 playSound('score');
                 scores[ball.label] += 10;
+                
+                const uName = ball.userName || "Unknown";
+                if (!playerScores[uName]) playerScores[uName] = { score: 0, pfp: ball.pfpUrl };
+                playerScores[uName].score += 10;
+
                 const scoreEl = document.getElementById(`score-${ball.label}`);
                 if (scoreEl) scoreEl.innerText = scores[ball.label];
                 trails = trails.filter(t => t.id !== ball.id);
@@ -406,16 +415,37 @@ setInterval(() => {
     document.getElementById('timer').innerText = `0${minutes}:${seconds}`;
     if (timeLeft <= 0) {
         isPaused = true;
+        
         const winner = Object.keys(scores).reduce((a, b) => scores[a] > scores[b] ? a : b);
         roundWins[winner]++;
+        
+        let topPlayerName = "No One";
+        let topPlayerScore = 0;
+        let topPlayerPFP = "https://i.pravatar.cc/100?u=none";
+
+        for (const [name, data] of Object.entries(playerScores)) {
+            if (data.score > topPlayerScore) {
+                topPlayerScore = data.score;
+                topPlayerName = name;
+                topPlayerPFP = data.pfp;
+            }
+        }
+
         document.getElementById(`wins-${winner}`).innerText = `[${roundWins[winner]}]`;
         document.getElementById('win-team-name').innerText = winner.toUpperCase();
         document.getElementById('win-team-name').style.color = colors[winner];
+        
+        document.getElementById('top-scorer-name').innerText = topPlayerName;
+        document.getElementById('top-scorer-points').innerText = `${topPlayerScore} PTS`;
+        document.getElementById('top-scorer-pfp').src = topPlayerPFP;
+
         document.getElementById('team-celebration').classList.add('show');
+
         setTimeout(() => {
             document.getElementById('team-celebration').classList.remove('show');
             timeLeft = 120; 
             scores = {red:0, blue:0, green:0, white:0};
+            playerScores = {}; 
             Object.keys(colors).forEach(t => {
                 const el = document.getElementById(`score-${t}`);
                 if (el) el.innerText = '0';
