@@ -26,7 +26,6 @@
             border: 2px solid rgba(51, 65, 85, 0.3); box-sizing: border-box; 
         }
 
-        /* FIXED: Username Connection UI now a centered modal */
         #setup-overlay {
             position: fixed; 
             top: 50%; left: 50%; 
@@ -181,6 +180,9 @@
 <script>
 const socket = typeof io !== 'undefined' ? io() : { on: () => {}, emit: () => {} }; 
 
+// --- CONFIGURATION ---
+let soundEnabled = false; // Set to true to re-enable sound effects
+
 function connectTikTok() {
     const user = document.getElementById('tiktok-username-input').value;
     if (user) {
@@ -223,14 +225,14 @@ const TRAIL_LENGTH = 12;
 const pfpCache = {};
 
 document.getElementById('audio-unlock').addEventListener('click', () => {
-    if (audioCtx.state === 'suspended') audioCtx.resume();
+    if (soundEnabled && audioCtx.state === 'suspended') audioCtx.resume();
     isPaused = false;
     Runner.run(runner, engine); 
     document.getElementById('audio-unlock').style.display = 'none';
 });
 
 function playSound(type) {
-    if (audioCtx.state === 'suspended') return;
+    if (!soundEnabled || audioCtx.state === 'suspended') return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
