@@ -1,7 +1,7 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-// --- IMPORT SignConfig ---
+// --- CHANGED: Added SignConfig to the import ---
 const { WebcastPushConnection, SignConfig } = require('tiktok-live-connector');
 const path = require('path');
 
@@ -9,7 +9,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// --- GLOBAL API KEY CONFIGURATION ---
+// --- NEW: Correct way to apply EulerStream API Key globally ---
 SignConfig.apiKey = "euler_YzA1YThiNWM0ZDgzNWI5NDQxNGVjOTRjMGMyNThiNjhmMDE4NDdlOTJhODllMmZjZjM0MjFl";
 
 app.use(express.static(__dirname));
@@ -34,14 +34,13 @@ io.on('connection', (socket) => {
             tiktokConnection.disconnect();
         }
 
-        // --- Connection uses the global SignConfig automatically ---
+        // --- UPDATED: Simplified connection using global SignConfig ---
         tiktokConnection = new WebcastPushConnection(username, {
             enableExtendedGiftInfo: true
         });
 
-        tiktokConnection.connect().then(state => {
-            console.info(`✅ Connected to: ${state.roomId}`);
-            console.info(`🎫 Request Signed: ${state.isSigned}`);
+        tiktokConnection.connect().then(() => {
+            console.info(`✅ Successfully connected to: ${username}`);
         }).catch(err => {
             console.error('❌ TikTok Connection Error:', err.message);
         });
