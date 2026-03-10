@@ -25,6 +25,44 @@
             display: flex; flex-direction: column; position: relative; 
             border: 2px solid rgba(51, 65, 85, 0.3); box-sizing: border-box; 
         }
+
+        /* FIXED: Username Connection UI now a centered modal */
+        #setup-overlay {
+            position: fixed; 
+            top: 50%; left: 50%; 
+            transform: translate(-50%, -50%); 
+            z-index: 2000; 
+            background: rgba(17, 24, 39, 0.95); 
+            padding: 25px; 
+            border-radius: 12px; 
+            display: flex; 
+            flex-direction: column;
+            gap: 15px; 
+            border: 2px solid var(--accent);
+            box-shadow: 0 0 30px rgba(0,0,0,0.5);
+            text-align: center;
+        }
+        #setup-overlay h3 { margin: 0; color: var(--accent); font-size: 1.2rem; }
+        #setup-overlay input { 
+            padding: 12px; 
+            border-radius: 6px; 
+            border: 1px solid #334155; 
+            background: #000;
+            color: white;
+            outline: none; 
+            width: 200px; 
+        }
+        #setup-overlay button { 
+            padding: 12px; 
+            background: var(--accent); 
+            color: black; 
+            border: none; 
+            border-radius: 6px; 
+            cursor: pointer; 
+            font-weight: bold; 
+            transition: 0.2s;
+        }
+        #setup-overlay button:hover { opacity: 0.9; transform: scale(1.02); }
         
         #game-overlay {
             position: absolute;
@@ -88,7 +126,7 @@
 
         #audio-unlock {
             position: absolute; top: 0; left: 0; width: 100%; height: 100%;
-            background: rgba(0,0,0,0.8); z-index: 999; display: flex;
+            background: rgba(0,0,0,0.8); z-index: 3000; display: flex;
             flex-direction: column; align-items: center; justify-content: center;
             cursor: pointer;
         }
@@ -100,8 +138,14 @@
     <h2 style="color: var(--accent)">CLICK TO START</h2>
 </div>
 
+<div id="setup-overlay">
+    <h3>TIKTOK CONNECT</h3>
+    <input type="text" id="tiktok-username-input" placeholder="@username">
+    <button onclick="connectTikTok()">START STREAM</button>
+</div>
+
 <div id="stream-wrapper">
-    <img src="overlay.png" id="game-overlay" alt="Overlay">
+    <img src="OVERLAY.png" id="game-overlay" alt="Overlay">
 
     <div id="header-board">
         <div class="bg-control">
@@ -135,6 +179,16 @@
 </div>
 
 <script>
+const socket = typeof io !== 'undefined' ? io() : { on: () => {}, emit: () => {} }; 
+
+function connectTikTok() {
+    const user = document.getElementById('tiktok-username-input').value;
+    if (user) {
+        socket.emit('set-username', user);
+        document.getElementById('setup-overlay').style.display = 'none';
+    }
+}
+
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let isPaused = true; 
 
@@ -278,22 +332,13 @@ Events.on(render, 'afterRender', () => {
         ctx.save();
         ctx.translate(x, y);
         ctx.rotate(angle);
-
-        // CLEARER STICKS VISIBILITY
         ctx.globalAlpha = 0.65; 
-
-        // Deep Shadow
         ctx.fillStyle = 'rgba(0,0,0,0.4)'; 
         ctx.fillRect(-stickLen/2 + 3, -stickThick/2 + 3, stickLen, stickThick);
-        
-        // Main Stick Body (Steel/Glass look)
         ctx.fillStyle = '#94a3b8';
         ctx.fillRect(-stickLen/2, -stickThick/2, stickLen, stickThick);
-        
-        // Highlight Edge
         ctx.fillStyle = 'rgba(255,255,255,0.4)';
         ctx.fillRect(-stickLen/2, -stickThick/2, stickLen, 2);
-        
         ctx.restore();
     });
 
@@ -302,7 +347,6 @@ Events.on(render, 'afterRender', () => {
         ctx.save();
         ctx.lineCap = 'round';
         ctx.lineJoin = 'round';
-
         ctx.beginPath();
         ctx.lineWidth = 26;
         ctx.globalAlpha = 0.25;
@@ -310,14 +354,12 @@ Events.on(render, 'afterRender', () => {
         ctx.moveTo(trail.points[0].x + 5, trail.points[0].y + 5);
         for(let i = 1; i < trail.points.length; i++) ctx.lineTo(trail.points[i].x + 5, trail.points[i].y + 5);
         ctx.stroke();
-
         for (let i = 0; i < trail.points.length - 1; i++) {
             const p1 = trail.points[i];
             const p2 = trail.points[i + 1];
             const opacity = 0.95 * Math.pow(1 - (i / trail.points.length), 0.4);
             ctx.globalAlpha = opacity;
             ctx.lineWidth = 24 * (1 - (i / (trail.points.length * 2.5))); 
-            
             ctx.beginPath();
             ctx.moveTo(p1.x, p1.y);
             ctx.lineTo(p2.x, p2.y);
@@ -331,23 +373,19 @@ Events.on(render, 'afterRender', () => {
         const { x, y } = ball.position;
         const radius = ball.circleRadius;
         const img = pfpCache[ball.pfpUrl];
-
         ctx.save();
         ctx.beginPath();
         ctx.ellipse(x + 4, y + 4, radius, radius*0.8, 0, 0, Math.PI*2);
         ctx.fillStyle = 'rgba(0,0,0,1)';
         ctx.fill();
-
         const grad = ctx.createRadialGradient(x - radius/3, y - radius/3, radius/4, x, y, radius);
         grad.addColorStop(0, '#fff');
         grad.addColorStop(0.2, colors[ball.label]);
         grad.addColorStop(1, '#000');
-
         ctx.beginPath();
         ctx.arc(x, y, radius, 0, Math.PI * 2);
         ctx.fillStyle = grad;
         ctx.fill();
-        
         ctx.beginPath();
         ctx.arc(x, y, radius * 0.85, 0, Math.PI * 2);
         ctx.clip();
@@ -358,8 +396,6 @@ Events.on(render, 'afterRender', () => {
         ctx.restore();
     });
 });
-
-const socket = typeof io !== 'undefined' ? io() : { on: () => {} }; 
 
 socket.on('dropBall', data => {
     const amount = data.count || 1; 
@@ -393,11 +429,9 @@ Events.on(engine, 'collisionStart', (event) => {
             if (colors[ball.label]) {
                 playSound('score');
                 scores[ball.label] += 10;
-                
                 const uName = ball.userName || "Unknown";
                 if (!playerScores[uName]) playerScores[uName] = { score: 0, pfp: ball.pfpUrl };
                 playerScores[uName].score += 10;
-
                 const scoreEl = document.getElementById(`score-${ball.label}`);
                 if (scoreEl) scoreEl.innerText = scores[ball.label];
                 trails = trails.filter(t => t.id !== ball.id);
@@ -415,14 +449,11 @@ setInterval(() => {
     document.getElementById('timer').innerText = `0${minutes}:${seconds}`;
     if (timeLeft <= 0) {
         isPaused = true;
-        
         const winner = Object.keys(scores).reduce((a, b) => scores[a] > scores[b] ? a : b);
         roundWins[winner]++;
-        
         let topPlayerName = "No One";
         let topPlayerScore = 0;
         let topPlayerPFP = "https://i.pravatar.cc/100?u=none";
-
         for (const [name, data] of Object.entries(playerScores)) {
             if (data.score > topPlayerScore) {
                 topPlayerScore = data.score;
@@ -430,17 +461,13 @@ setInterval(() => {
                 topPlayerPFP = data.pfp;
             }
         }
-
         document.getElementById(`wins-${winner}`).innerText = `[${roundWins[winner]}]`;
         document.getElementById('win-team-name').innerText = winner.toUpperCase();
         document.getElementById('win-team-name').style.color = colors[winner];
-        
         document.getElementById('top-scorer-name').innerText = topPlayerName;
         document.getElementById('top-scorer-points').innerText = `${topPlayerScore} PTS`;
         document.getElementById('top-scorer-pfp').src = topPlayerPFP;
-
         document.getElementById('team-celebration').classList.add('show');
-
         setTimeout(() => {
             document.getElementById('team-celebration').classList.remove('show');
             timeLeft = 120; 
