@@ -30,7 +30,15 @@ io.on('connection', (socket) => {
             tiktokConnection.disconnect();
         }
 
-        tiktokConnection = new WebcastPushConnection(username);
+        // --- UPDATED FOR EULERSTREAM API ---
+        tiktokConnection = new WebcastPushConnection(username, {
+            enableExtendedGiftInfo: true,
+            signProviderOptions: {
+                params: {
+                    apiKey: "euler_YzA1YThiNWM0ZDgzNWI5NDQxNGVjOTRjMGMyNThiNjhmMDE4NDdlOTJhODllMmZjZjM0MjFl"
+                }
+            }
+        });
 
         tiktokConnection.connect().then(() => {
             console.info(`✅ Successfully connected to: ${username}`);
@@ -97,7 +105,6 @@ function setupTikTokEvents(connection) {
     });
 }
 
-// Support for Render PORT
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
     console.log(`🚀 Server running on port ${PORT}`);
