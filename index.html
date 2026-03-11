@@ -26,6 +26,7 @@
             border: 2px solid rgba(51, 65, 85, 0.3); box-sizing: border-box; 
         }
 
+        /* FIXED: Username Connection UI now a centered modal */
         #setup-overlay {
             position: fixed; 
             top: 50%; left: 50%; 
@@ -190,7 +191,6 @@ function connectTikTok() {
 
 const audioCtx = new (window.AudioContext || window.webkitAudioContext)();
 let isPaused = true; 
-let audioEnabled = false; // Audio strictly disabled by default
 
 document.getElementById('set-bg-btn').addEventListener('click', () => {
     const url = document.getElementById('bg-url-input').value;
@@ -216,7 +216,7 @@ const testPFPs = {
 let scores = { red: 0, blue: 0, green: 0, white: 0 };
 let playerScores = {}; 
 let roundWins = { red: 0, blue: 0, green: 0, white: 0 }; 
-let timeLeft = 120; // 2-minute timer
+let timeLeft = 120; 
 
 let trails = [];
 const TRAIL_LENGTH = 12; 
@@ -230,7 +230,7 @@ document.getElementById('audio-unlock').addEventListener('click', () => {
 });
 
 function playSound(type) {
-    if (!audioEnabled || audioCtx.state === 'suspended') return;
+    if (audioCtx.state === 'suspended') return;
     const osc = audioCtx.createOscillator();
     const gain = audioCtx.createGain();
     osc.connect(gain); gain.connect(audioCtx.destination);
