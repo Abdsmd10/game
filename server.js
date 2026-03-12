@@ -1,7 +1,6 @@
 const express = require('express');
 const http = require('http');
 const { Server } = require('socket.io');
-// --- CHANGED: Added SignConfig to the import ---
 const { WebcastPushConnection, SignConfig } = require('tiktok-live-connector');
 const path = require('path');
 
@@ -9,8 +8,9 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 
-// --- NEW: Correct way to apply EulerStream API Key globally ---
+// --- CONFIGURATION ---
 SignConfig.apiKey = "euler_YzA1YThiNWM0ZDgzNWI5NDQxNGVjOTRjMGMyNThiNjhmMDE4NDdlOTJhODllMmZjZjM0MjFl";
+const TIKTOK_USERNAME = "uginamir"; 
 
 app.use(express.static(__dirname));
 
@@ -18,54 +18,56 @@ app.use(express.static(__dirname));
 let tiktokConnection;
 let playerTeams = {}; 
 let likeCounters = {}; 
-let teamRosters = { red: [], blue: [], green: [], white: [] }; 
 let processedFollowers = new Set(); 
 
 const teamMap = { 'r': 'red', 'b': 'blue', 'g': 'green', 'w': 'white' };
 const teams = ['red', 'blue', 'green', 'white'];
 
-io.on('connection', (socket) => {
-    console.log('🌐 Browser UI connected');
-
-    socket.on('set-username', (username) => {
-        console.log(`🔗 Connecting to TikTok user: ${username}`);
-        
-        if (tiktokConnection) {
-            tiktokConnection.disconnect();
-        }
-
-        // --- UPDATED: Simplified connection using global SignConfig ---
-        tiktokConnection = new WebcastPushConnection(username, {
-            enableExtendedGiftInfo: true
-        });
-
-        tiktokConnection.connect().then(() => {
-            console.info(`✅ Successfully connected to: ${username}`);
-        }).catch(err => {
-            console.error('❌ TikTok Connection Error:', err.message);
-        });
-
-        setupTikTokEvents(tiktokConnection);
+// --- RECONNECTION LOGIC ---
+function connectToTikTok() {
+    console.log(`🔗 Attempting to connect: ${TIKTOK_USERNAME}`);
+    
+    tiktokConnection = new WebcastPushConnection(TIKTOK_USERNAME, {
+        processInitialData: false,
+        enableExtendedGiftInfo: true,
+        requestPollingIntervalMs: 2000 // Helps maintain stability
     });
-});
 
-function setupTikTokEvents(connection) {
-    // 1. JOIN TEAM SYSTEM
-    connection.on('chat', (data) => {
-        const comment = data.comment.toLowerCase().trim();
+    tiktokConnection.connect().then(state => {
+        console.log(`✅ Connected to Room ID: ${state.roomId}`);
+    }).catch(err => {
+        console.error('❌ Connection Failed. Retrying in 10s...', err);
+        setTimeout(connectToTikTok, 10000); // Retry after 10 seconds
+    });
+
+    tiktokConnection.on('disconnected', () => {
+        console.log('⚠️ TikTok Disconnected! Reconnecting...');
+        setTimeout(connectToTikTok, 5000);
+    });
+
+    tiktokConnection.on('streamEnd', () => {
+        console.log('🛑 Stream ended by creator.');
+        setTimeout(connectToTikTok, 30000); 
+    });
+
+    tiktokConnection.on('error', (err) => {
+        console.error('❌ TikTok Error:', err);
+    });
+
+    // 1. JOIN SYSTEM (Chat)
+    tiktokConnection.on('chat', (data) => {
+        const msg = data.comment.toLowerCase().trim();
         const uID = data.uniqueId;
-        const pPic = data.profilePictureUrl;
-
-        if (!playerTeams[uID] && teamMap[comment]) {
-            const selectedTeam = teamMap[comment];
-            playerTeams[uID] = selectedTeam;
-            teamRosters[selectedTeam].push(pPic);
-            io.emit('dropBall', { team: selectedTeam, count: 1, user: uID, pfp: pPic });
+        if (teamMap[msg]) {
+            const newTeam = teamMap[msg];
+            const isSwitching = playerTeams[uID] && playerTeams[uID] !== newTeam;
+            playerTeams[uID] = newTeam;
+            io.emit('newPlayer', { user: uID, team: newTeam, pfp: data.profilePictureUrl, isSwitching });
         }
     });
 
     // 2. LIKE SYSTEM
-    connection.on('like', (data) => {
+    tiktokConnection.on('like', (data) => {
         const uID = data.uniqueId;
         if (playerTeams[uID]) {
             likeCounters[uID] = (likeCounters[uID] || 0) + data.likeCount;
@@ -78,33 +80,40 @@ function setupTikTokEvents(connection) {
     });
 
     // 3. FOLLOWER SYSTEM
-    connection.on('follow', (data) => {
+    tiktokConnection.on('follow', (data) => {
         const uID = data.uniqueId;
         if (processedFollowers.has(uID)) return;
-
         let targetTeam = playerTeams[uID] || teams[Math.floor(Math.random() * teams.length)];
         processedFollowers.add(uID);
         io.emit('dropBall', { team: targetTeam, count: 5, user: uID, pfp: data.profilePictureUrl });
     });
 
     // 4. GIFT SYSTEM
-    connection.on('gift', (data) => {
+    tiktokConnection.on('gift', (data) => {
         const uID = data.uniqueId;
         const giftName = data.giftName.toLowerCase();
         let targetTeam = null;
-
         if (giftName === 'rose') targetTeam = 'red';
-        else if (giftName === 'gg') targetTeam = 'blue';
+        else if (giftName === 'tiktok') targetTeam = 'blue';
         else if (giftName.includes('heart me')) targetTeam = 'green';
-        else if (giftName === 'ice cream') targetTeam = 'white';
-
+        else if (giftName === 'gg') targetTeam = 'white';
         if (targetTeam) {
-            io.emit('dropBall', { team: targetTeam, count: 20, user: uID, pfp: data.profilePictureUrl });
+            io.emit('dropBall', { team: targetTeam, count: 10, user: uID, pfp: data.profilePictureUrl });
         }
     });
 }
 
+connectToTikTok();
+
+// --- PREVENT RENDER SLEEP ---
+// This pings the server every 5 minutes so Render doesn't shut it down
+setInterval(() => {
+    http.get(`http://localhost:${PORT}/`, (res) => {
+        console.log('Keep-alive ping sent');
+    });
+}, 300000); 
+
 const PORT = process.env.PORT || 3000;
 server.listen(PORT, () => {
-    console.log(`🚀 Server running on port ${PORT}`);
+    console.log(`🚀 Server running on http://localhost:${PORT}`);
 });
