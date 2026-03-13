@@ -94,6 +94,10 @@
 
     <div id="header-board">
         <div class="bg-control">
+            <input type="text" id="username-input" placeholder="TikTok Username...">
+            <button id="set-username-btn">SET USER</button>
+        </div>
+        <div class="bg-control">
             <input type="text" id="bg-url-input" placeholder="Enter image URL (Direct Link)...">
             <button id="set-bg-btn">SET BG</button>
         </div>
@@ -159,6 +163,13 @@ document.getElementById('set-bg-btn').addEventListener('click', () => {
     const url = document.getElementById('bg-url-input').value;
     if (url) {
         document.getElementById('stream-wrapper').style.backgroundImage = `url('${url}')`;
+    }
+});
+
+document.getElementById('set-username-btn').addEventListener('click', () => {
+    const user = document.getElementById('username-input').value;
+    if (user) {
+        socket.emit('updateUsername', user);
     }
 });
 
