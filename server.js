@@ -10,7 +10,7 @@ const io = new Server(server);
 
 // --- CONFIGURATION ---
 SignConfig.apiKey = "euler_YzA1YThiNWM0ZDgzNWI5NDQxNGVjOTRjMGMyNThiNjhmMDE4NDdlOTJhODllMmZjZjM0MjFl";
-const TIKTOK_USERNAME = "uginamir"; 
+let TIKTOK_USERNAME = "uginamir"; 
 
 app.use(express.static(__dirname));
 
@@ -25,6 +25,10 @@ const teams = ['red', 'blue', 'green', 'white'];
 
 // --- RECONNECTION LOGIC ---
 function connectToTikTok() {
+    if (tiktokConnection) {
+        tiktokConnection.disconnect();
+    }
+    
     console.log(`🔗 Attempting to connect: ${TIKTOK_USERNAME}`);
     
     tiktokConnection = new WebcastPushConnection(TIKTOK_USERNAME, {
@@ -102,6 +106,13 @@ function connectToTikTok() {
         }
     });
 }
+
+io.on('connection', (socket) => {
+    socket.on('updateUsername', (newUsername) => {
+        TIKTOK_USERNAME = newUsername;
+        connectToTikTok();
+    });
+});
 
 connectToTikTok();
 
