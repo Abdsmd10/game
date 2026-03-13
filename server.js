@@ -10,7 +10,7 @@ const io = new Server(server);
 
 // --- CONFIGURATION ---
 SignConfig.apiKey = "euler_YzA1YThiNWM0ZDgzNWI5NDQxNGVjOTRjMGMyNThiNjhmMDE4NDdlOTJhODllMmZjZjM0MjFl";
-let TIKTOK_USERNAME = "uginamir"; 
+let TIKTOK_USERNAME = ""; // Set via UI
 
 app.use(express.static(__dirname));
 
@@ -25,6 +25,11 @@ const teams = ['red', 'blue', 'green', 'white'];
 
 // --- RECONNECTION LOGIC ---
 function connectToTikTok() {
+    if (!TIKTOK_USERNAME) {
+        console.log("⏳ Waiting for username from UI...");
+        return;
+    }
+
     if (tiktokConnection) {
         tiktokConnection.disconnect();
     }
@@ -34,14 +39,14 @@ function connectToTikTok() {
     tiktokConnection = new WebcastPushConnection(TIKTOK_USERNAME, {
         processInitialData: false,
         enableExtendedGiftInfo: true,
-        requestPollingIntervalMs: 2000 // Helps maintain stability
+        requestPollingIntervalMs: 2000 
     });
 
     tiktokConnection.connect().then(state => {
         console.log(`✅ Connected to Room ID: ${state.roomId}`);
     }).catch(err => {
         console.error('❌ Connection Failed. Retrying in 10s...', err);
-        setTimeout(connectToTikTok, 10000); // Retry after 10 seconds
+        setTimeout(connectToTikTok, 10000); 
     });
 
     tiktokConnection.on('disconnected', () => {
@@ -117,7 +122,6 @@ io.on('connection', (socket) => {
 connectToTikTok();
 
 // --- PREVENT RENDER SLEEP ---
-// This pings the server every 5 minutes so Render doesn't shut it down
 setInterval(() => {
     http.get(`http://localhost:${PORT}/`, (res) => {
         console.log('Keep-alive ping sent');
